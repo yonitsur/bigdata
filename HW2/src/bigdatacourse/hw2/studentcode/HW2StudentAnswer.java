@@ -22,9 +22,10 @@ public class HW2StudentAnswer implements HW2API{
 	
 	// general consts
 	public static final String		NOT_AVAILABLE_VALUE 	=		"na";
-	public static final int		MAX_ROWS 	=		10000;
+	public static final int		MAX_ROWS 	=		100;
 	// CQL stuff
 	private static final String		TABLE_REVIEWS = "reviews_Office_Products";
+	private static final String		TABLE_REVIEWS_BY_ITEM = "reviews_Office_Products_by_item";
 	private static final String		TABLE_ITEMS = "meta_Office_Products";
 	
 	private static final String		CQL_CREATE_REVIEWS_TABLE = 
@@ -38,8 +39,22 @@ public class HW2StudentAnswer implements HW2API{
 				"summary text,"				+
 				"unixReviewTime bigint,"			+
 				"reviewTime text,"				+
-				"PRIMARY KEY ((reviewerID), asin, unixReviewTime)"	+
-			") "; //+"WITH CLUSTERING ORDER BY (unixReviewTime DESC, asin ASC, reviewerID ASC)";
+				"PRIMARY KEY ((reviewerID),  unixReviewTime, asin)"	+
+			")   WITH CLUSTERING ORDER BY (unixReviewTime DESC, asin ASC)";
+
+	private static final String		CQL_CREATE_REVIEWS_BY_ITEM_TABLE = 
+			"CREATE TABLE " + TABLE_REVIEWS_BY_ITEM 	+"(" 		+ 
+				"reviewerID text,"			+
+				"asin text,"				+
+				"reviewerName text,"			+
+				"helpful LIST<int>,"				+
+				"reviewText text,"				+
+				"overall float,"				+
+				"summary text,"				+
+				"unixReviewTime bigint,"			+
+				"reviewTime text,"				+
+				"PRIMARY KEY ((asin), unixReviewTime, reviewerID)"	+
+			")  WITH CLUSTERING ORDER BY (unixReviewTime DESC, reviewerID ASC)";
 
 	private static final String		CQL_CREATE_ITEMS_TABLE = 
 			"CREATE TABLE " + TABLE_ITEMS 	+"(" 		+ 
@@ -60,11 +75,15 @@ public class HW2StudentAnswer implements HW2API{
 			"INSERT INTO " + TABLE_REVIEWS + " (reviewerID, asin, reviewerName, helpful, reviewText, overall, summary, unixReviewTime, reviewTime) " + 
 			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
+	private static final String		CQL_TABLE_REVIEWS_BY_ITEM_INSERT = 
+			"INSERT INTO " + TABLE_REVIEWS_BY_ITEM + " (reviewerID, asin, reviewerName, helpful, reviewText, overall, summary, unixReviewTime, reviewTime) " + 
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
 	private static final String		CQL_TABLE_REVIEWS_SELECT = 
-			"SELECT * FROM " + TABLE_REVIEWS + " WHERE reviewerID = ?";//" ORDER BY desc unixReviewTime, asin";
+			"SELECT * FROM " + TABLE_REVIEWS + " WHERE reviewerID = ?";
 
 	private static final String		CQL_TABLE_REVIEWS_SELECT_BY_ITEM = 
-			"SELECT * FROM " + TABLE_REVIEWS + " WHERE asin = ? ALLOW FILTERING";
+			"SELECT * FROM " + TABLE_REVIEWS_BY_ITEM + " WHERE asin = ? ";
 
 	private static final String		CQL_TABLE_ITEMS_INSERT =
 			"INSERT INTO " + TABLE_ITEMS + " (asin, title, price, imUrl, related, salesRank, brand, categories, description) " + 
@@ -79,6 +98,7 @@ public class HW2StudentAnswer implements HW2API{
 	
 	// prepared statements
 	PreparedStatement reviewsAdd;
+	PreparedStatement reviewsByItemAdd;
 	PreparedStatement reviewsSelect;
 	PreparedStatement reviewsSelectByItem;
 	PreparedStatement itemAdd;
@@ -118,13 +138,16 @@ public class HW2StudentAnswer implements HW2API{
 		session.execute(CQL_CREATE_ITEMS_TABLE);
 		System.out.println("created table: " + TABLE_ITEMS);
 		session.execute(CQL_CREATE_REVIEWS_TABLE);
-		System.out.println("created table: " + TABLE_REVIEWS);	
+		System.out.println("created table: " + TABLE_REVIEWS);
+		session.execute(CQL_CREATE_REVIEWS_BY_ITEM_TABLE);
+		System.out.println("created table: " + TABLE_REVIEWS_BY_ITEM);	
 	}
 
 	@Override
 	public void initialize() {
 		reviewsAdd = session.prepare(CQL_TABLE_REVIEWS_INSERT);
 		reviewsSelect = session.prepare(CQL_TABLE_REVIEWS_SELECT);
+		reviewsByItemAdd = session.prepare(CQL_TABLE_REVIEWS_BY_ITEM_INSERT);
 		reviewsSelectByItem = session.prepare(CQL_TABLE_REVIEWS_SELECT_BY_ITEM);
 		itemAdd = session.prepare(CQL_TABLE_ITEMS_INSERT);
 		itemSelect = session.prepare(CQL_TABLE_ITEMS_SELECT);
@@ -244,10 +267,17 @@ public class HW2StudentAnswer implements HW2API{
 							helpful.add(help.getInt(i));
 				}	catch (JSONException e) {}
 				BoundStatement bstmt = reviewsAdd.bind(reviewerID, asin, reviewerName, helpful, reviewText, overall, summary, unixReviewTime, reviewTime);
+				BoundStatement bstmt2 = reviewsByItemAdd.bind(reviewerID, asin,  reviewerName, helpful, reviewText, overall, summary, unixReviewTime, reviewTime);	
 				executor.execute(new Runnable() {
 					@Override
 					public void run() {
 						session.execute(bstmt);
+					}
+				});
+				executor.execute(new Runnable() {
+					@Override
+					public void run() {
+						session.execute(bstmt2);
 					}
 				});
 				t++;
